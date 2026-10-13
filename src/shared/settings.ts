@@ -33,6 +33,9 @@ export interface Settings {
   clickPingId: PingId;
   /** Fullscreen apps (games) keep every click: trigger + click passes through while one is front. */
   gameCheck: boolean;
+  /** Your own ping of `askClaudePing` screenshots that display and pastes it into the Claude desktop app's message box (Windows). */
+  askClaude: boolean;
+  askClaudePing: PingId;
   /** The wheel's slices, top (N) then clockwise. */
   wheel: PingId[];
   toggleHotkey: Hotkey;
@@ -84,6 +87,8 @@ export const DEFAULT_SETTINGS: Settings = {
   dragThresholdPx: 8,
   clickPing: false,
   gameCheck: true,
+  askClaude: true,
+  askClaudePing: 'missing',
   clickPingId: DEFAULT_CLICK_PING,
   wheel: [...DEFAULT_WHEEL],
   toggleHotkey: { mods: MOD.ctrl | MOD.alt, vk: 0x50 },
@@ -122,7 +127,7 @@ export const LIMITS = {
 } as const;
 
 type NumKey = keyof typeof LIMITS;
-type BoolKey = 'enabledOnStart' | 'clickPing' | 'gameCheck' | 'muted' | 'tickSound' | 'launchAtStartup' | 'allowInternet' | 'rejoinRoom' | 'roomMuted'
+type BoolKey = 'enabledOnStart' | 'clickPing' | 'gameCheck' | 'askClaude' | 'muted' | 'tickSound' | 'launchAtStartup' | 'allowInternet' | 'rejoinRoom' | 'roomMuted'
   | 'emoteClick' | 'emoteSound' | 'autoUpdateCheck';
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -222,6 +227,8 @@ export function normalizeSettings(raw: unknown, platform: Platform = 'win', iden
     dragThresholdPx: num(r.dragThresholdPx, 'dragThresholdPx'),
     clickPing: bool(r.clickPing, 'clickPing'),
     gameCheck: bool(r.gameCheck, 'gameCheck'),
+    askClaude: bool(r.askClaude, 'askClaude'),
+    askClaudePing: isPingId(r.askClaudePing) ? r.askClaudePing : DEFAULT_SETTINGS.askClaudePing,
     clickPingId: isPingId(r.clickPingId) ? r.clickPingId : DEFAULT_CLICK_PING,
     wheel: isValidWheel(r.wheel) ? [...r.wheel] : [...DEFAULT_WHEEL],
     toggleHotkey,

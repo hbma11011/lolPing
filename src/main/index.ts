@@ -11,6 +11,7 @@ import { formatRoomCode, parseRoomCode } from '../shared/roomCode';
 import { overlaySettings, type Settings } from '../shared/settings';
 import { updateErrorText, type UpdateState } from '../shared/update';
 import { registerAppScheme, serveAppScheme } from './appProtocol';
+import { AskClaude } from './askClaude';
 import { resolveTarget, toShared } from './displayNumbers';
 import { EmoteLibrary, resolveEmoteArt } from './emoteLibrary';
 import { InputBridge } from './inputBridge';
@@ -249,6 +250,8 @@ function start(): void {
   room.on('state', pushRoom);
   overlays.on('displays', pushRoom);
   room.on('remotePing', (p) => overlays.spawnRemote(p));
+  const askClaude = new AskClaude({ settings: () => settings, text, toast: (title, body) => { if (!quitting) overlays.toast(title, body); } });
+  overlays.on('shared', (p: SharedPing) => askClaude.handle(p));
   overlays.on('shared', (p: SharedPing) => {
     const shared = toShared(overlays.numbered(), p.displayId, p.x, p.y);
     if (shared) room.sendPing(p.id, shared);

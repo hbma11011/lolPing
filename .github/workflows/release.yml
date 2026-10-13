@@ -1,7 +1,9 @@
 name: Release
 
-# Push a tag that matches package.json's version (for example v0.2.0) to build both installers and publish them.
+# Builds the Windows installer and publishes it as a release of this repository, tagged v<package.json version>.
+# Start it from the Actions tab ("Run workflow"), or push a matching tag. Installed copies update from this repository's releases.
 on:
+  workflow_dispatch:
   push:
     tags: ['v*']
 
@@ -11,23 +13,32 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
-      - name: Check the tag matches package.json
-        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
-      # A draft: installed apps look for latest.yml in the newest published release, so it must not show up before the Windows job has
-      # uploaded it (every check would fail with "Cannot find latest.yml" meanwhile). The publish job at the end makes it public.
-      # A draft is not found by `gh release view`, so look for the tag in the list. A re-run keeps the release it already has.
+      - id: tag
+        run: echo "tag=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Check a pushed tag matches package.json
+        if: github.ref_type == 'tag'
+        run: test "${{ steps.tag.outputs.tag }}" = "$GITHUB_REF_NAME"
+      # A draft until the installer and latest.yml are attached, so installed copies never see a release without them.
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          gh release list --limit 200 --json tagName --jq '.[].tagName' | grep -Fx "$GITHUB_REF_NAME" > /dev/null \
-            || gh release create "$GITHUB_REF_NAME" --title "lolPing $GITHUB_REF_NAME" --generate-notes --draft
+          gh release list --limit 200 --json tagName --jq '.[].tagName' | grep -Fx "$TAG" > /dev/null \
+            || gh release create "$TAG" --target "$GITHUB_SHA" --title "lolPing $TAG" --generate-notes --draft
 
   windows:
     needs: release
     runs-on: windows-latest
+    env:
+      TAG: ${{ needs.release.outputs.tag }}
+      # Read by package.json's publish settings: installed copies look for updates in this repository.
+      LOLPING_OWNER: ${{ github.repository_owner }}
+      LOLPING_REPO: ${{ github.event.repository.name }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -44,42 +55,19 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        # latest.yml and the blockmap are what electron-updater in an installed lolPing reads to find and fetch this version.
         run: |
-          gh release upload "$GITHUB_REF_NAME" \
-            "release/lolPing-Setup-${GITHUB_REF_NAME#v}.exe" \
+          gh release upload "$TAG" \
+            "release/lolPing-Setup-${TAG#v}.exe" \
             "release/latest.yml" \
-            "release/lolPing-Setup-${GITHUB_REF_NAME#v}.exe.blockmap" \
+            "release/lolPing-Setup-${TAG#v}.exe.blockmap" \
             --clobber
 
-  mac:
-    needs: release
-    runs-on: macos-latest # Apple Silicon
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false # gh uses GH_TOKEN; nothing here pushes
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run test:helper
-      - run: npm test
-      - run: npm run dist:mac
-      - run: codesign --verify --deep --strict "release/mac-arm64/lolPing.app"
-      - name: Upload the disk image
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" "release/lolPing-${GITHUB_REF_NAME#v}-arm64.dmg" --clobber
-
-  # Both installers and the update files are uploaded: only now does the draft become the latest release.
   publish:
-    needs: [windows, mac]
+    needs: [release, windows]
     runs-on: ubuntu-latest
     steps:
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh release edit "$GITHUB_REF_NAME" --draft=false
+        run: gh release edit "${{ needs.release.outputs.tag }}" --draft=false --latest

@@ -425,3 +425,13 @@ describe('update settings', () => {
     expect(mergeSettings(s, { updateNotifiedVersion: 'junk' }).updateNotifiedVersion).toBeNull();
   });
 });
+
+describe('askClaude', () => {
+  it('is on for the Enemy Missing ping by default', () => {
+    expect(normalizeSettings(undefined)).toMatchObject({ askClaude: true, askClaudePing: 'missing' });
+  });
+  it('keeps a valid choice and drops a bad one', () => {
+    expect(normalizeSettings({ askClaude: false, askClaudePing: 'danger' })).toMatchObject({ askClaude: false, askClaudePing: 'danger' });
+    expect(normalizeSettings({ askClaude: 'yes', askClaudePing: 'nope' })).toMatchObject({ askClaude: true, askClaudePing: 'missing' });
+  });
+});

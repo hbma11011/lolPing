@@ -1,7 +1,7 @@
 {
   "name": "lolping",
   "productName": "lolPing",
-  "version": "0.5.1",
+  "version": "0.5.100",
   "private": true,
   "description": "League of Legends style ping wheel for your Windows and macOS desktop",
   "author": "Danrui Meng (https://github.com/darrenprx)",
@@ -79,6 +79,6 @@
       }
     },
     "dmg": { "artifactName": "lolPing-${version}-arm64.dmg" },
-    "publish": [{ "provider": "github", "owner": "darrenprx", "repo": "lolPing" }]
+    "publish": [{ "provider": "github", "owner": "${env.LOLPING_OWNER}", "repo": "${env.LOLPING_REPO}" }]
   }
 }
