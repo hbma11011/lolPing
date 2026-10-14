@@ -17,38 +17,35 @@ function job(name: string): string {
 describe('release workflow', () => {
   it('creates the release as a draft, and only when none exists for the tag (a re-run keeps working)', () => {
     const create = job('release');
-    expect(create).toMatch(/gh release create "\$GITHUB_REF_NAME"[^\n]*--draft/);
+    expect(create).toMatch(/gh release create "\$TAG"[^\n]*--draft/);
     expect(create).toMatch(/gh release list[^\n]*--json tagName/); // a draft is found by listing, not by `gh release view`
-    expect(create).toMatch(/grep -Fx "\$GITHUB_REF_NAME" > \/dev\/null/); // not -q: grep reads the whole list, so gh never gets a broken pipe
+    expect(create).toMatch(/grep -Fx "\$TAG" > \/dev\/null/); // not -q: grep reads the whole list, so gh never gets a broken pipe
   });
 
-  it('uploads the installer, latest.yml and the blockmap from the Windows job, and the disk image from the Mac job', () => {
+  it('uploads the installer, latest.yml and the blockmap from the Windows job', () => {
     const win = job('windows');
-    expect(win).toContain('"release/lolPing-Setup-${GITHUB_REF_NAME#v}.exe"');
+    expect(win).toContain('"release/lolPing-Setup-${TAG#v}.exe"');
     expect(win).toContain('"release/latest.yml"');
-    expect(win).toContain('"release/lolPing-Setup-${GITHUB_REF_NAME#v}.exe.blockmap"');
+    expect(win).toContain('"release/lolPing-Setup-${TAG#v}.exe.blockmap"');
     expect(win).toContain('--clobber');
-    expect(job('mac')).toContain('release/lolPing-${GITHUB_REF_NAME#v}-arm64.dmg');
   });
 
-  it('publishes the draft in a last job that waits for both platform jobs', () => {
+  it('points installed copies at this repository for updates', () => {
+    expect(job('windows')).toContain('LOLPING_OWNER: ${{ github.repository_owner }}');
+  });
+
+  it('publishes the draft in a last job that waits for the Windows job', () => {
     const publish = job('publish');
-    expect(publish).toMatch(/needs: \[windows, mac\]/);
-    expect(publish).toContain('gh release edit "$GITHUB_REF_NAME" --draft=false');
+    expect(publish).toMatch(/needs: \[release, windows\]/);
+    expect(publish).toContain('--draft=false');
     expect(publish).toMatch(/GH_REPO: \$\{\{ github\.repository \}\}/); // no checkout in this job, so gh needs to be told the repository
   });
 
-  it('leaves no git credentials behind in the platform jobs (gh uses GH_TOKEN, and nothing there pushes)', () => {
-    for (const name of ['windows', 'mac']) {
-      const text = job(name);
-      expect(text, name).toMatch(/actions\/checkout@v7\n\s+with:\n\s+persist-credentials: false/);
-      expect(text, name).not.toMatch(/git (push|commit|tag)/);
-      expect(text, name).toContain('GH_TOKEN: ${{ github.token }}');
-    }
-  });
-
-  it('never publishes from the platform jobs', () => {
-    expect(job('windows')).not.toContain('--draft=false');
-    expect(job('mac')).not.toContain('--draft=false');
+  it('leaves no git credentials behind in the Windows job and never publishes from it', () => {
+    const text = job('windows');
+    expect(text).toMatch(/actions\/checkout@v7\n\s+with:\n\s+persist-credentials: false/);
+    expect(text).not.toMatch(/git (push|commit|tag)/);
+    expect(text).toContain('GH_TOKEN: ${{ github.token }}');
+    expect(text).not.toContain('--draft=false');
   });
 });
